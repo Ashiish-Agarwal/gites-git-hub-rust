@@ -1,8 +1,10 @@
-use anyhow::{Ok, Result,Context};
-use flate2::{ read::ZlibDecoder};
+use anyhow::{Context, Ok, Result, ensure};
+use flate2::{ Compression, read::ZlibDecoder  ,write:: ZlibEncoder};
 use clap::{Parser, Subcommand, builder::Str};
-use std::{fs, io::{BufRead, BufReader, Read, Stdout}, vec};
+use std::{fmt::format, fs, io::{self, BufRead, BufReader, Read, Stdout, Write}, path::PathBuf, vec};
 use std::ffi::CStr;
+use sha1::{Digest, Sha1, digest};
+
 #[derive(Parser)]
 // #[command(version, about, long_about = None)]
 struct Cli {
@@ -18,6 +20,13 @@ enum Commands {
         #[clap(short='p')]
         prettyprint:bool,
         objecthash:String
+    },
+    HashFile {
+        #[clap(short='w')]
+        write :bool,
+        file:PathBuf
+
+
     }
 }
 enum Kind {
@@ -52,9 +61,8 @@ Commands::Catfile { prettyprint , objecthash}=>{
     let Some((Kind, size))= header.split_once(" ")else {
         anyhow::bail!("git object file header is not known type: ' {header}'  ")
     };
-    // let Some(size)= header.strip_prefix("blob ")else {
-    //     anyhow::bail!("git/object file not statting with blob ")
-    // };
+    
+   
     let kind = match Kind {
         "blob"=>Kind::blob,
         _=>anyhow::bail!("kwe do not yet know how to print a '{Kind}'")
@@ -62,13 +70,30 @@ Commands::Catfile { prettyprint , objecthash}=>{
 
 
     let size = size.parse::<usize>().context("get header file is invalid size ")?;
+
+    
     buff.clear();
-    buff.resize(size,0);
+     buff.resize(size,0);
     z.read_exact(&mut buff[..]).context("read true content of .gites/object file")?;
     let n = z.read(&mut [0]).context("validate eof in .git/object file had {n} trailing bytes")?;
-    anyhow::ensure!(n == 0,"git object file had {n} trait");
+    let mut  z = Ratelimitor{
+        reader:z,
+        limit:size,
+    };
+   
+    match kind {
+       Kind::blob =>{
+           let stdout = std::io::stdout();
+           let mut stdout = stdout.lock();
+           let n = std::io::copy(&mut z,&mut stdout).context("write .git/object file to stdout")?;
+       }
+       
+   }
+   
     let stdout = std::io::stdout();
     let mut Stdout = stdout.lock();
+
+
 
     
 
@@ -77,8 +102,60 @@ Commands::Catfile { prettyprint , objecthash}=>{
 }
    
     
+Commands::HashFile { write , file  }=>{
+    
+   
+     let read = fs::read_to_string(file).unwrap();
+
+    
+let blobcontent= format!("blob{}\0{}",&read.len(), &read);
+
+let hex_string=  hex::encode( Sha1::digest(&blobcontent));
+let dir = format!(".gites/objects/{}",&hex_string[..2]);
+let path = format!("{}/{}", &dir,&hex_string[2..]  );
+
+let mut zlib_en= ZlibEncoder::new(Vec::new(),Compression::default());
+zlib_en.write_all(blobcontent.as_bytes()).unwrap();
+
+let compressed = zlib_en.finish().unwrap();
+fs::create_dir_all(&dir);
+
+fs::write(&path, compressed).unwrap();
+println!("hex stirng {}", hex_string);
+
+
+
+}
 }
    
 Ok(())
 
+}
+
+struct Ratelimitor <R>{
+
+    reader:R,
+    limit:usize
+
+
+}
+ 
+impl<R> Read for  Ratelimitor<R> where R:Read  {
+    fn read(&mut self,mut  buf: &mut [u8]) -> std::io::Result<usize> {
+       if buf.len()>self.limit{
+        buf = &mut buf[..self.limit +1]
+       }
+       let n = self.reader.read(buf)?;
+       if n > self.limit {
+        return Err(io::Error::new(io::ErrorKind::Other,"too many bites"));
+           
+       }
+       self.limit-=n;
+       Ok(n);
+        return Err(io::Error::new(io::ErrorKind::Other,"too many bites"));
+
+    }
+    
+
+    
 }
