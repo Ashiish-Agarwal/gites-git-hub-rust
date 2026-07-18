@@ -1,9 +1,9 @@
-use anyhow::{Context, Ok, Result, ensure};
+use anyhow::{Context,  Result};
 use flate2::{ Compression, read::ZlibDecoder  ,write:: ZlibEncoder};
 use clap::{Parser, Subcommand, builder::Str};
-use std::{fmt::format, fs, io::{self, BufRead, BufReader, Read, Stdout, Write}, path::PathBuf, vec};
+use std::{fmt::format, fs::{self, File, create_dir_all}, io::{self, BufRead, BufReader, Read, Stdout, Write}, path::{Path, PathBuf}, ptr::hash, vec};
 use std::ffi::CStr;
-use sha1::{Digest, Sha1, digest};
+use sha1::{ Digest, Sha1};
 
 #[derive(Parser)]
 // #[command(version, about, long_about = None)]
@@ -103,25 +103,74 @@ Commands::Catfile { prettyprint , objecthash}=>{
    
     
 Commands::HashFile { write , file  }=>{
-    
    
-     let read = fs::read_to_string(file).unwrap();
+
+
+   
+     let read = fs::read(&file)?;
+
+
+     fn write_blob<W>(file: &Path, write: W) -> anyhow::Result<String>  where W:Write {
+
+let stat = std::fs::metadata(&file)
+    .with_context(|| format!("reading the file {}", file.display())).expect("fail the metadata reading a file ");
+    
+   let mut writer = ZlibEncoder::new(Vec::new(), Compression::default());
+   
+
+   // what he gave basically we putting read binarry then the zlib iin writer just create a compression on 
+   //it then sha1 giving new sha of 20 bytes so we not have a billion bytes we only have 20 bytes 
+   let mut writer = Hashwrite{
+       writer: writer,
+       hasher:Sha1::new()
+    };
+    
+    write!(writer,"blob ").expect("got an issue in writing blob");
+    write!(writer,"{}\0 " ,&stat.len() ).expect("got the issue in wrtiing blob");
+
+    let mut file= std::fs::File::open(&file).with_context(||format!("df {}",&file.display()))?;
+    
+    std::io::copy(&mut file, &mut writer);
+    let _ = writer.writer.finish();
+    let hash = writer.hasher.finalize();
 
     
-let blobcontent= format!("blob{}\0{}",&read.len(), &read);
+    Ok(hex::encode(hash))
+    
+    
+}
+     
+     
+     let mut blob:Vec<u8>= Vec::new();
+     //mistake may be 
+     write!(blob ,"blob {}\0",&read.len());
+     let object =blob.extend_from_slice(&read);
+     let shahash = Sha1::digest(&blob);
+     let  hex= hex::encode(shahash);
+     let path = format!(".gites/objects/{}/{}",&hex[..2],&hex[2..]);
+     let mut zlib_en = ZlibEncoder::new(Vec::new(), Compression::default());
+  zlib_en.write_all(&blob);
+  
+let compressed = zlib_en.finish()?;
+create_dir_all(&path);
+fs::write(&path, compressed);
 
-let hex_string=  hex::encode( Sha1::digest(&blobcontent));
-let dir = format!(".gites/objects/{}",&hex_string[..2]);
-let path = format!("{}/{}", &dir,&hex_string[2..]  );
 
-let mut zlib_en= ZlibEncoder::new(Vec::new(),Compression::default());
-zlib_en.write_all(blobcontent.as_bytes()).unwrap();
+// let blobcontent= format!("blob{}\0{}",&read.len(), &read);
 
-let compressed = zlib_en.finish().unwrap();
-fs::create_dir_all(&dir);
 
-fs::write(&path, compressed).unwrap();
-println!("hex stirng {}", hex_string);
+// let hex_string=  hex::encode( Sha1::digest(&blobcontent));
+// let dir = format!(".gites/objects/{}",&hex_string[..2]);
+// let path = format!("{}/{}", &dir,&hex_string[2..]  );
+
+// let mut zlib_en= ZlibEncoder::new(Vec::new(),Compression::default());
+// zlib_en.write_all(blobcontent.as_bytes()).unwrap();
+
+// let compressed = zlib_en.finish().unwrap();
+// fs::create_dir_all(&dir);
+
+// fs::write(&path, compressed).unwrap();
+// println!("hex stirng {}", hex_string);
 
 
 
@@ -141,6 +190,8 @@ struct Ratelimitor <R>{
 }
  
 impl<R> Read for  Ratelimitor<R> where R:Read  {
+
+
     fn read(&mut self,mut  buf: &mut [u8]) -> std::io::Result<usize> {
        if buf.len()>self.limit{
         buf = &mut buf[..self.limit +1]
@@ -151,11 +202,33 @@ impl<R> Read for  Ratelimitor<R> where R:Read  {
            
        }
        self.limit-=n;
-       Ok(n);
+       
         return Err(io::Error::new(io::ErrorKind::Other,"too many bites"));
 
     }
     
+
+    
+}
+
+struct Hashwrite<W>{
+    writer:W,
+    hasher:Sha1
+
+
+}
+
+impl <W>Write for  Hashwrite<W> where W:Write{
+   fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+let n = self.writer.write(buf)?;
+self.hasher.update(&buf[..n]);
+Ok(n)
+  
+       
+   }
+   fn flush(&mut self) -> io::Result<()> {
+      self.writer.flush()
+   }
 
     
 }
