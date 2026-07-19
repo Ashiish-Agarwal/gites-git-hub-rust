@@ -139,38 +139,38 @@ let stat = std::fs::metadata(&file)
     
     
 }
+let hash = if write {
+    let tamp = "tempraory";
+    
+    let hash = write_blob(&file, fs::File::create(tamp).context("creatng tamp file")? )?;
+    fs::create_dir_all(format!(".gites/objects/{}",&hash[..2])).context("creating files ")?;
+    fs::rename(&tamp, format!(".gites/objects/{}/{}", &hash[..2], &hash[2..]))?;
+    hash
+
+    
+} else {
+    write_blob(&file, std::io::sink()).context("context")?
+    
+};
+   println!("{hash}");
      
      
-     let mut blob:Vec<u8>= Vec::new();
-     //mistake may be 
-     write!(blob ,"blob {}\0",&read.len());
-     let object =blob.extend_from_slice(&read);
-     let shahash = Sha1::digest(&blob);
-     let  hex= hex::encode(shahash);
-     let path = format!(".gites/objects/{}/{}",&hex[..2],&hex[2..]);
-     let mut zlib_en = ZlibEncoder::new(Vec::new(), Compression::default());
-  zlib_en.write_all(&blob);
+//      let mut blob:Vec<u8>= Vec::new();
+//      //rough code 
+//      write!(blob ,"blob {}\0",&read.len());
+//      let object =blob.extend_from_slice(&read);
+//      let shahash = Sha1::digest(&blob);
+//      let  hex= hex::encode(shahash);
+//      let path = format!(".gites/objects/{}/{}",&hex[..2],&hex[2..]);
+//      let mut zlib_en = ZlibEncoder::new(Vec::new(), Compression::default());
+//   zlib_en.write_all(&blob);
   
-let compressed = zlib_en.finish()?;
-create_dir_all(&path);
-fs::write(&path, compressed);
+// let compressed = zlib_en.finish()?;
+// create_dir_all(&path);
+// fs::write(&path, compressed);
 
 
-// let blobcontent= format!("blob{}\0{}",&read.len(), &read);
 
-
-// let hex_string=  hex::encode( Sha1::digest(&blobcontent));
-// let dir = format!(".gites/objects/{}",&hex_string[..2]);
-// let path = format!("{}/{}", &dir,&hex_string[2..]  );
-
-// let mut zlib_en= ZlibEncoder::new(Vec::new(),Compression::default());
-// zlib_en.write_all(blobcontent.as_bytes()).unwrap();
-
-// let compressed = zlib_en.finish().unwrap();
-// fs::create_dir_all(&dir);
-
-// fs::write(&path, compressed).unwrap();
-// println!("hex stirng {}", hex_string);
 
 
 
@@ -199,6 +199,7 @@ impl<R> Read for  Ratelimitor<R> where R:Read  {
        let n = self.reader.read(buf)?;
        if n > self.limit {
         return Err(io::Error::new(io::ErrorKind::Other,"too many bites"));
+        
            
        }
        self.limit-=n;
