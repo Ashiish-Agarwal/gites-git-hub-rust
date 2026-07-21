@@ -1,15 +1,22 @@
 use anyhow::{Context,  Result};
 use flate2::{ Compression, read::ZlibDecoder  ,write:: ZlibEncoder};
-use clap::{Parser, Subcommand, builder::Str};
+use clap::{Parser, Subcommand};
 use std::{fmt::format, fs::{self, File, create_dir_all}, io::{self, BufRead, BufReader, Read, Stdout, Write}, path::{Path, PathBuf}, ptr::hash, vec};
 use std::ffi::CStr;
 use sha1::{ Digest, Sha1};
+mod cammands;
+mod object;
+
 
 #[derive(Parser)]
 // #[command(version, about, long_about = None)]
+
 struct Cli {
-    #[command(subcommand)]
-    command: Commands,
+    
+#[command(subcommand)]
+#[command()]
+
+    command: Commands
 }
 
 #[derive(Subcommand)]
@@ -49,53 +56,7 @@ match cli.command {
 
 }
 Commands::Catfile { prettyprint , objecthash}=>{
-    anyhow::ensure!(prettyprint,"mode must be wihtout -p , and we dont support mode");
-    let  f = std::fs::File::open(format!("./gites/objects/{}/{}", &objecthash[..2], &objecthash[2..])).context("open in .gites")?;
-
-    let mut z = ZlibDecoder::new(f);
-    let mut z = BufReader::new(z);
-    let mut buff= Vec::new();
-    z.read_until(0,&mut buff).expect("read header from gites");
-    let header = CStr::from_bytes_until_nul(&buff).expect("know this is exactly null ");
-    let header = header.to_str().expect("git object file is not valid");
-    let Some((Kind, size))= header.split_once(" ")else {
-        anyhow::bail!("git object file header is not known type: ' {header}'  ")
-    };
-    
-   
-    let kind = match Kind {
-        "blob"=>Kind::blob,
-        _=>anyhow::bail!("kwe do not yet know how to print a '{Kind}'")
-};
-
-
-    let size = size.parse::<usize>().context("get header file is invalid size ")?;
-
-    
-    buff.clear();
-     buff.resize(size,0);
-    z.read_exact(&mut buff[..]).context("read true content of .gites/object file")?;
-    let n = z.read(&mut [0]).context("validate eof in .git/object file had {n} trailing bytes")?;
-    let mut  z = Ratelimitor{
-        reader:z,
-        limit:size,
-    };
-   
-    match kind {
-       Kind::blob =>{
-           let stdout = std::io::stdout();
-           let mut stdout = stdout.lock();
-           let n = std::io::copy(&mut z,&mut stdout).context("write .git/object file to stdout")?;
-       }
-       
-   }
-   
-    let stdout = std::io::stdout();
-    let mut Stdout = stdout.lock();
-
-
-
-    
+    cammands::cat_file::invoke(prettyprint, &objecthash).context("working in cat-file cammand")?;
 
 
     
@@ -103,9 +64,6 @@ Commands::Catfile { prettyprint , objecthash}=>{
    
     
 Commands::HashFile { write , file  }=>{
-   
-
-
    
      let read = fs::read(&file)?;
 
