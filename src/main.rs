@@ -1,6 +1,6 @@
 use anyhow::{Context,  Result};
 use flate2::{ Compression, read::ZlibDecoder  ,write:: ZlibEncoder};
-use clap::{Parser, Subcommand};
+use clap::{Parser, Subcommand, builder::Str};
 use std::{fmt::format, fs::{self, File, create_dir_all}, io::{self, BufRead, BufReader, Read, Stdout, Write}, path::{Path, PathBuf}, ptr::hash, vec};
 use std::ffi::CStr;
 use sha1::{ Digest, Sha1};
@@ -34,6 +34,11 @@ enum Commands {
         file:PathBuf
 
 
+    },
+    LsTree{
+        #[clap(long)]
+        name_only:bool,
+        tree_hash:String
     }
 }
 enum Kind {
@@ -64,75 +69,63 @@ Commands::Catfile { prettyprint , objecthash}=>{
    
     
 Commands::HashFile { write , file  }=>{
+    cammands::hash_file::invoke(&file, write).context("working at hash-file creation ")?;
    
-     let read = fs::read(&file)?;
+    //  let read: Vec<u8> = fs::read(&file)?;
 
 
-     fn write_blob<W>(file: &Path, write: W) -> anyhow::Result<String>  where W:Write {
+//      fn write_blob<W>(file: &Path, write: W) -> anyhow::Result<String>  where W:Write {
 
-let stat = std::fs::metadata(&file)
-    .with_context(|| format!("reading the file {}", file.display())).expect("fail the metadata reading a file ");
+// let stat = std::fs::metadata(&file)
+//     .with_context(|| format!("reading the file {}", file.display())).expect("fail the metadata reading a file ");
     
-   let mut writer = ZlibEncoder::new(Vec::new(), Compression::default());
+//    let mut writer: ZlibEncoder<Vec<u8>> = ZlibEncoder::new(Vec::new(), Compression::default());
    
 
-   // what he gave basically we putting read binarry then the zlib iin writer just create a compression on 
-   //it then sha1 giving new sha of 20 bytes so we not have a billion bytes we only have 20 bytes 
-   let mut writer = Hashwrite{
-       writer: writer,
-       hasher:Sha1::new()
-    };
+//    // what he gave basically we putting read binarry then the zlib iin writer just create a compression on 
+//    //it then sha1 giving new sha of 20 bytes so we not have a billion bytes we only have 20 bytes 
+//    let mut writer = Hashwrite{
+//        writer: writer,
+//        hasher:Sha1::new()
+//     };
     
-    write!(writer,"blob ").expect("got an issue in writing blob");
-    write!(writer,"{}\0 " ,&stat.len() ).expect("got the issue in wrtiing blob");
+//     write!(writer,"blob ").expect("got an issue in writing blob");
+//     write!(writer,"{}\0 " ,&stat.len() ).expect("got the issue in wrtiing blob");
 
-    let mut file= std::fs::File::open(&file).with_context(||format!("df {}",&file.display()))?;
+//     let mut file= std::fs::File::open(&file).with_context(||format!("df {}",&file.display()))?;
     
-    std::io::copy(&mut file, &mut writer);
-    let _ = writer.writer.finish();
-    let hash = writer.hasher.finalize();
-
-    
-    Ok(hex::encode(hash))
-    
-    
-}
-let hash = if write {
-    let tamp = "tempraory";
-    
-    let hash = write_blob(&file, fs::File::create(tamp).context("creatng tamp file")? )?;
-    fs::create_dir_all(format!(".gites/objects/{}",&hash[..2])).context("creating files ")?;
-    fs::rename(&tamp, format!(".gites/objects/{}/{}", &hash[..2], &hash[2..]))?;
-    hash
+//     std::io::copy(&mut file, &mut writer);
+//     let _ = writer.writer.finish();
+//     let hash = writer.hasher.finalize();
 
     
-} else {
-    write_blob(&file, std::io::sink()).context("context")?
+//     Ok(hex::encode(hash))
     
-};
-   println!("{hash}");
-     
-     
-//      let mut blob:Vec<u8>= Vec::new();
-//      //rough code 
-//      write!(blob ,"blob {}\0",&read.len());
-//      let object =blob.extend_from_slice(&read);
-//      let shahash = Sha1::digest(&blob);
-//      let  hex= hex::encode(shahash);
-//      let path = format!(".gites/objects/{}/{}",&hex[..2],&hex[2..]);
-//      let mut zlib_en = ZlibEncoder::new(Vec::new(), Compression::default());
-//   zlib_en.write_all(&blob);
-  
-// let compressed = zlib_en.finish()?;
-// create_dir_all(&path);
-// fs::write(&path, compressed);
+    
+// }
+// let hash = if write {
+//     let tamp = "tempraory";
+    
+//     let hash = write_blob(&file, fs::File::create(tamp).context("creatng tamp file")? )?;
+//     fs::create_dir_all(format!(".gites/objects/{}",&hash[..2])).context("creating files ")?;
+//     fs::rename(&tamp, format!(".gites/objects/{}/{}", &hash[..2], &hash[2..]))?;
+//     hash
 
-
-
-
+    
+// } else {
+//     write_blob(&file, std::io::sink()).context("context")?
+    
+// };
+//    println!("{hash}");
 
 
 }
+Commands::LsTree { name_only ,tree_hash}=>{
+    cammands::ls_tree::invoke(name_only,&tree_hash).context("working at ls_tree reader")?;
+
+    
+}
+
 }
    
 Ok(())
@@ -166,28 +159,6 @@ impl<R> Read for  Ratelimitor<R> where R:Read  {
 
     }
     
-
-    
-}
-
-struct Hashwrite<W>{
-    writer:W,
-    hasher:Sha1
-
-
-}
-
-impl <W>Write for  Hashwrite<W> where W:Write{
-   fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-let n = self.writer.write(buf)?;
-self.hasher.update(&buf[..n]);
-Ok(n)
-  
-       
-   }
-   fn flush(&mut self) -> io::Result<()> {
-      self.writer.flush()
-   }
 
     
 }
