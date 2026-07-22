@@ -71,53 +71,7 @@ Commands::Catfile { prettyprint , objecthash}=>{
 Commands::HashFile { write , file  }=>{
     cammands::hash_file::invoke(&file, write).context("working at hash-file creation ")?;
    
-    //  let read: Vec<u8> = fs::read(&file)?;
-
-
-//      fn write_blob<W>(file: &Path, write: W) -> anyhow::Result<String>  where W:Write {
-
-// let stat = std::fs::metadata(&file)
-//     .with_context(|| format!("reading the file {}", file.display())).expect("fail the metadata reading a file ");
     
-//    let mut writer: ZlibEncoder<Vec<u8>> = ZlibEncoder::new(Vec::new(), Compression::default());
-   
-
-//    // what he gave basically we putting read binarry then the zlib iin writer just create a compression on 
-//    //it then sha1 giving new sha of 20 bytes so we not have a billion bytes we only have 20 bytes 
-//    let mut writer = Hashwrite{
-//        writer: writer,
-//        hasher:Sha1::new()
-//     };
-    
-//     write!(writer,"blob ").expect("got an issue in writing blob");
-//     write!(writer,"{}\0 " ,&stat.len() ).expect("got the issue in wrtiing blob");
-
-//     let mut file= std::fs::File::open(&file).with_context(||format!("df {}",&file.display()))?;
-    
-//     std::io::copy(&mut file, &mut writer);
-//     let _ = writer.writer.finish();
-//     let hash = writer.hasher.finalize();
-
-    
-//     Ok(hex::encode(hash))
-    
-    
-// }
-// let hash = if write {
-//     let tamp = "tempraory";
-    
-//     let hash = write_blob(&file, fs::File::create(tamp).context("creatng tamp file")? )?;
-//     fs::create_dir_all(format!(".gites/objects/{}",&hash[..2])).context("creating files ")?;
-//     fs::rename(&tamp, format!(".gites/objects/{}/{}", &hash[..2], &hash[2..]))?;
-//     hash
-
-    
-// } else {
-//     write_blob(&file, std::io::sink()).context("context")?
-    
-// };
-//    println!("{hash}");
-
 
 }
 Commands::LsTree { name_only ,tree_hash}=>{
