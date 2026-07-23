@@ -1,6 +1,6 @@
-use std::io::stdout;
 
-use crate::object::{Kind,Object};
+
+use crate::object::{Kind};
 
 use anyhow::Context;
 
